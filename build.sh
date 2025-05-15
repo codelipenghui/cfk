@@ -3,6 +3,9 @@
 # Set Go path
 export PATH=/usr/local/go/bin:$PATH
 
+# Disable CGO for compatibility
+export CGO_ENABLED=0
+
 # Build the application
 echo "Building cfk..."
 go build -o cfk ./cmd/cfk

@@ -1,6 +1,6 @@
 module github.com/cfk-dev/cfk
 
-go 1.23.9
+go 1.24
 
 require (
 	github.com/charmbracelet/bubbles v0.16.1
