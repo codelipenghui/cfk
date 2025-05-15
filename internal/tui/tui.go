@@ -2,7 +2,9 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/cfk-dev/cfk/internal/config"
 	"github.com/cfk-dev/cfk/internal/core"
@@ -25,8 +27,10 @@ type Model struct {
 	topicTable   table.Model
 	viewport     viewport.Model
 	clusterForm  ClusterForm
+	topicForm    TopicForm
 	err          error
 	selectedItem string
+	selectedCluster string
 	width        int
 	height       int
 }
@@ -65,6 +69,9 @@ func NewModel(cfg *config.AppConfig, app *core.App) Model {
 	
 	// Create cluster form
 	clusterForm := NewClusterForm(width, height, nil)
+	
+	// Create topic form
+	topicForm := NewTopicForm(width, height, "", 0)
 
 	return Model{
 		config:      cfg,
@@ -75,6 +82,7 @@ func NewModel(cfg *config.AppConfig, app *core.App) Model {
 		topicTable:  topicTable,
 		viewport:    viewport,
 		clusterForm: clusterForm,
+		topicForm:   topicForm,
 		width:       width,
 		height:      height,
 	}
@@ -97,6 +105,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		
 		// Update components with new size
 		m.clusterForm = NewClusterForm(m.width, m.height, nil)
+		m.topicForm = NewTopicForm(m.width, m.height, "", 0)
 		
 		// Update list heights
 		h := m.height - 6 // Adjust for header and footer
@@ -113,7 +122,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle global key events
 		switch msg.String() {
 		case "ctrl+c", "q":
-			if m.state != "add_cluster" && m.state != "edit_cluster" {
+			if m.state != "add_cluster" && m.state != "edit_cluster" && 
+			   m.state != "add_topic" && m.state != "edit_topic" {
 				return m, tea.Quit
 			}
 		case "enter":
@@ -121,6 +131,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// When a cluster is selected, connect to it and switch to topics view
 				if i, ok := m.clusterList.SelectedItem().(Item); ok {
 					m.selectedItem = i.Title()
+					m.selectedCluster = i.Title()
 					// Connect to the selected cluster
 					return m, func() tea.Msg {
 						if err := m.app.ConnectToCluster(m.selectedItem); err != nil {
@@ -129,6 +140,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.state = "topics"
 						// After connecting, update the topic list
 						return UpdateTopicListCmd(m.app)()
+					}
+				}
+			} else if m.state == "topics" {
+				// When a topic is selected, show topic details
+				if i, ok := m.topicList.SelectedItem().(Item); ok {
+					m.selectedItem = i.Title()
+					// Get topic details
+					return m, func() tea.Msg {
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						
+						topicInfo, err := m.app.GetTopicInfo(ctx, m.selectedItem)
+						if err != nil {
+							return ErrorMsg{err}
+						}
+						
+						// Update the topic table with the details
+						rows := []table.Row{
+							{m.selectedItem, fmt.Sprintf("%d", topicInfo.Partitions), "1"},
+						}
+						m.topicTable.SetRows(rows)
+						
+						m.state = "topic_details"
+						return nil
 					}
 				}
 			}
@@ -150,6 +185,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = "add_cluster"
 				m.clusterForm = NewClusterForm(m.width, m.height, nil)
 				return m, m.clusterForm.Init()
+			} else if m.state == "topics" {
+				m.state = "add_topic"
+				m.topicForm = NewTopicForm(m.width, m.height, "", 0)
+				return m, m.topicForm.Init()
 			}
 		case "d":
 			// Delete the selected cluster or topic
@@ -162,6 +201,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 						// Update the cluster list
 						return UpdateClusterListCmd(m.config.Clusters)()
+					}
+				}
+			} else if m.state == "topics" {
+				if i, ok := m.topicList.SelectedItem().(Item); ok {
+					topicName := i.Title()
+					return m, func() tea.Msg {
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						
+						if err := m.app.DeleteTopic(ctx, topicName); err != nil {
+							return ErrorMsg{err}
+						}
+						
+						// Update the topic list
+						return UpdateTopicListCmd(m.app)()
 					}
 				}
 			}
@@ -183,6 +237,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.state = "edit_cluster"
 						m.clusterForm = NewClusterForm(m.width, m.height, clusterConfig)
 						return m, m.clusterForm.Init()
+					}
+				}
+			} else if m.state == "topics" {
+				if i, ok := m.topicList.SelectedItem().(Item); ok {
+					topicName := i.Title()
+					
+					// Get topic info for editing
+					return m, func() tea.Msg {
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						
+						topicInfo, err := m.app.GetTopicInfo(ctx, topicName)
+						if err != nil {
+							return ErrorMsg{err}
+						}
+						
+						m.state = "edit_topic"
+						m.topicForm = NewTopicForm(m.width, m.height, topicName, topicInfo.Partitions)
+						return m.topicForm.Init()()
 					}
 				}
 			}
@@ -223,6 +296,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Return to clusters view
 		m.state = "clusters"
 		return m, nil
+	case TopicAddedMsg:
+		// Add the new topic
+		return m, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			
+			if err := m.app.CreateTopic(ctx, msg.Name, msg.Partitions, msg.ReplicationFactor); err != nil {
+				return ErrorMsg{err}
+			}
+			
+			// Return to topics view and update the list
+			m.state = "topics"
+			return UpdateTopicListCmd(m.app)()
+		}
+	case TopicUpdatedMsg:
+		// Update the topic
+		return m, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			
+			// Currently we can only update partitions
+			if err := m.app.UpdateTopicPartitions(ctx, msg.OldName, msg.Partitions); err != nil {
+				return ErrorMsg{err}
+			}
+			
+			// Return to topics view and update the list
+			m.state = "topics"
+			return UpdateTopicListCmd(m.app)()
+		}
+	case TopicFormCancelledMsg:
+		// Return to topics view
+		m.state = "topics"
+		return m, nil
 	}
 
 	// Update components based on current state
@@ -241,6 +347,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newForm, cmd := m.clusterForm.Update(msg)
 		m.clusterForm = newForm
 		return m, cmd
+	case "add_topic", "edit_topic":
+		// Update the topic form
+		newForm, cmd := m.topicForm.Update(msg)
+		m.topicForm = newForm
+		return m, cmd
 	default: // clusters
 		m.clusterList, cmd = m.clusterList.Update(msg)
 		return m, cmd
@@ -255,14 +366,17 @@ func (m Model) View() string {
 
 	switch m.state {
 	case "topics":
-		return fmt.Sprintf("Connected to: %s\n\n%s\n\nPress 'esc' to go back, 'q' to quit", 
-			m.selectedItem, m.topicList.View())
+		helpText := "\nPress 'a' to add, 'e' to edit, 'd' to delete, 'enter' to view details, 'esc' to go back, 'q' to quit"
+		return fmt.Sprintf("Connected to cluster: %s\n\n%s\n%s", 
+			m.selectedCluster, m.topicList.View(), helpText)
 	case "topic_details":
 		return m.topicTable.View() + "\n\nPress 'esc' to go back, 'q' to quit"
 	case "messages":
 		return m.viewport.View() + "\n\nPress 'esc' to go back, 'q' to quit"
 	case "add_cluster", "edit_cluster":
 		return m.clusterForm.View()
+	case "add_topic", "edit_topic":
+		return m.topicForm.View()
 	default: // clusters
 		helpText := "\nPress 'a' to add, 'e' to edit, 'd' to delete, 'enter' to connect, 'q' to quit"
 		if m.clusterList.Items() == nil || len(m.clusterList.Items()) == 0 {

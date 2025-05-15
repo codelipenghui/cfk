@@ -160,3 +160,30 @@ func (a *App) RemoveCluster(clusterName string) error {
 
 	return nil
 }
+
+// CreateTopic creates a new topic in the connected Kafka cluster
+func (a *App) CreateTopic(ctx context.Context, topicName string, numPartitions int, replicationFactor int) error {
+	if a.KafkaClient == nil {
+		return fmt.Errorf("not connected to any Kafka cluster")
+	}
+
+	return a.KafkaClient.CreateTopic(ctx, topicName, numPartitions, replicationFactor)
+}
+
+// DeleteTopic deletes a topic from the connected Kafka cluster
+func (a *App) DeleteTopic(ctx context.Context, topicName string) error {
+	if a.KafkaClient == nil {
+		return fmt.Errorf("not connected to any Kafka cluster")
+	}
+
+	return a.KafkaClient.DeleteTopic(ctx, topicName)
+}
+
+// UpdateTopicPartitions updates the number of partitions for a topic
+func (a *App) UpdateTopicPartitions(ctx context.Context, topicName string, numPartitions int) error {
+	if a.KafkaClient == nil {
+		return fmt.Errorf("not connected to any Kafka cluster")
+	}
+
+	return a.KafkaClient.UpdateTopicPartitions(ctx, topicName, numPartitions)
+}
