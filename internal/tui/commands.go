@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cfk-dev/cfk/internal/config"
+	"github.com/cfk-dev/cfk/internal/core"
 	"github.com/cfk-dev/cfk/internal/kafka"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,7 +22,7 @@ type CommandMsg struct {
 
 // ErrorMsg is a message containing an error
 type ErrorMsg struct {
-	Err error
+	err error
 }
 
 // TopicsLoadedMsg is a message containing loaded topics
@@ -34,6 +35,11 @@ type ConnectedMsg struct {
 	ClusterName string
 }
 
+// ItemsUpdatedMsg is a message containing updated list items
+type ItemsUpdatedMsg struct {
+	Items []list.Item
+}
+
 // LoadTopicsCmd returns a command that loads topics from Kafka
 func LoadTopicsCmd(client *kafka.Client) Command {
 	return func() tea.Msg {
@@ -42,7 +48,7 @@ func LoadTopicsCmd(client *kafka.Client) Command {
 
 		topics, err := client.ListTopics(ctx)
 		if err != nil {
-			return ErrorMsg{Err: fmt.Errorf("failed to list topics: %w", err)}
+			return ErrorMsg{err: fmt.Errorf("failed to list topics: %w", err)}
 		}
 
 		return TopicsLoadedMsg{Topics: topics}
@@ -55,7 +61,7 @@ func ConnectToClusterCmd(clusterConfig config.KafkaClusterConfig) Command {
 		client := kafka.NewClient(clusterConfig)
 		err := client.Connect()
 		if err != nil {
-			return ErrorMsg{Err: fmt.Errorf("failed to connect to cluster %s: %w", clusterConfig.Name, err)}
+			return ErrorMsg{err: fmt.Errorf("failed to connect to cluster %s: %w", clusterConfig.Name, err)}
 		}
 
 		return ConnectedMsg{ClusterName: clusterConfig.Name}
@@ -63,14 +69,22 @@ func ConnectToClusterCmd(clusterConfig config.KafkaClusterConfig) Command {
 }
 
 // UpdateTopicListCmd returns a command that updates the topic list
-func UpdateTopicListCmd(topics []string) Command {
+func UpdateTopicListCmd(app *core.App) Command {
 	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		
+		topics, err := app.ListTopics(ctx)
+		if err != nil {
+			return ErrorMsg{err: fmt.Errorf("failed to list topics: %w", err)}
+		}
+		
 		items := make([]list.Item, len(topics))
 		for i, topic := range topics {
 			items[i] = NewTopicItem(topic, nil)
 		}
 
-		return list.NewItems(items)
+		return ItemsUpdatedMsg{Items: items}
 	}
 }
 
@@ -82,6 +96,6 @@ func UpdateClusterListCmd(clusters []config.KafkaClusterConfig) Command {
 			items[i] = NewClusterItem(cluster.Name, cluster.Bootstrap)
 		}
 
-		return list.NewItems(items)
+		return ItemsUpdatedMsg{Items: items}
 	}
 }

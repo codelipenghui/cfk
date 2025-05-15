@@ -94,3 +94,69 @@ func (a *App) AddCluster(cluster config.KafkaClusterConfig) error {
 
 	return nil
 }
+
+// UpdateCluster updates an existing Kafka cluster configuration
+func (a *App) UpdateCluster(cluster config.KafkaClusterConfig) error {
+	// Find the cluster to update
+	found := false
+	for i, c := range a.Config.Clusters {
+		if c.Name == cluster.Name {
+			// Update the cluster
+			a.Config.Clusters[i] = cluster
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("cluster with name %s not found", cluster.Name)
+	}
+
+	// Save the updated configuration
+	homeDir, err := config.GetConfigDir()
+	if err != nil {
+		return fmt.Errorf("failed to get config directory: %w", err)
+	}
+
+	configPath := homeDir + "/config.yaml"
+	if err := config.SaveAppConfig(a.Config, configPath); err != nil {
+		return fmt.Errorf("failed to save configuration: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveCluster removes a Kafka cluster configuration
+func (a *App) RemoveCluster(clusterName string) error {
+	// Find the cluster to remove
+	found := false
+	var updatedClusters []config.KafkaClusterConfig
+	
+	for _, c := range a.Config.Clusters {
+		if c.Name == clusterName {
+			found = true
+		} else {
+			updatedClusters = append(updatedClusters, c)
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("cluster with name %s not found", clusterName)
+	}
+
+	// Update the clusters list
+	a.Config.Clusters = updatedClusters
+
+	// Save the updated configuration
+	homeDir, err := config.GetConfigDir()
+	if err != nil {
+		return fmt.Errorf("failed to get config directory: %w", err)
+	}
+
+	configPath := homeDir + "/config.yaml"
+	if err := config.SaveAppConfig(a.Config, configPath); err != nil {
+		return fmt.Errorf("failed to save configuration: %w", err)
+	}
+
+	return nil
+}

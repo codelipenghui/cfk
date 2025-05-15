@@ -19,11 +19,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Debug code removed
+
 	// Initialize application core
 	app := core.NewApp(appConfig)
-
-	// Initialize and start TUI
-	if err := tui.Start(appConfig); err != nil {
+	
+	// Pass the app to the TUI
+	if err := tui.Start(appConfig, app); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
 		os.Exit(1)
 	}

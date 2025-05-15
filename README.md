@@ -19,7 +19,7 @@ Console for Kafka (cfk) is a TUI (Terminal User Interface) application that allo
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.23 or later
 
 ### Building from source
 
@@ -29,7 +29,7 @@ git clone https://github.com/cfk-dev/cfk.git
 cd cfk
 
 # Build the application
-go build -o cfk ./cmd/cfk
+./build.sh
 
 # Install the application (optional)
 go install ./cmd/cfk
@@ -81,6 +81,11 @@ ui:
 │   ├── core/           # Application core logic
 │   ├── kafka/          # Kafka client adapter
 │   └── tui/            # Terminal UI components
+│       ├── commands.go # UI commands
+│       ├── delegate.go # Custom list delegate
+│       ├── forms.go    # Form components
+│       ├── item.go     # List item definitions
+│       └── tui.go      # Main UI model
 ├── go.mod              # Go module definition
 └── README.md           # This file
 ```
