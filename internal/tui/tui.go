@@ -478,8 +478,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		defer f.Close()
 		fmt.Fprintf(f, "Updating topic form with message type: %T\n", msg)
 
+		// Ensure the form state is correct based on the application state
+		if m.state == "edit_topic" && m.topicForm.topicName == "" {
+			// If we're in edit_topic state but the form doesn't have a topic name,
+			// get the selected topic name and set it
+			if i, ok := m.topicList.SelectedItem().(Item); ok {
+				topicName := i.Title()
+				fmt.Fprintf(f, "Fixing topicName in form to '%s' before update\n", topicName)
+				m.topicForm.topicName = topicName
+				m.topicForm.isEdit = true
+				// Also set the value in the input field
+				m.topicForm.inputs[0].SetValue(topicName)
+			}
+		}
+
 		// Update the topic form
 		newForm, cmd := m.topicForm.Update(msg)
+
+		// Preserve the topic name and edit state
+		if m.state == "edit_topic" && newForm.topicName == "" && m.topicForm.topicName != "" {
+			fmt.Fprintf(f, "Preserving topicName '%s' after update\n", m.topicForm.topicName)
+			newForm.topicName = m.topicForm.topicName
+			newForm.isEdit = true
+		}
+
 		m.topicForm = newForm
 		return m, cmd
 	default: // clusters
@@ -515,7 +537,20 @@ func (m Model) View() string {
 		return m.clusterForm.View()
 	case "add_topic", "edit_topic":
 		fmt.Fprintf(f, "Rendering %s form\n", m.state)
-		// Just return the form view
+		// Force the form to show the correct view based on the state
+		if m.state == "edit_topic" && m.topicForm.topicName == "" {
+			// If we're in edit_topic state but the form doesn't have a topic name,
+			// get the selected topic name and set it
+			if i, ok := m.topicList.SelectedItem().(Item); ok {
+				topicName := i.Title()
+				fmt.Fprintf(f, "Fixing topicName in form to '%s'\n", topicName)
+				m.topicForm.topicName = topicName
+				m.topicForm.isEdit = true
+				// Also set the value in the input field
+				m.topicForm.inputs[0].SetValue(topicName)
+			}
+		}
+		// Return the form view
 		return m.topicForm.View()
 	default: // clusters
 		helpText := "\nPress 'a' to add, 'e' to edit, 'd' to delete, 'enter' to connect, 'q' to quit"
