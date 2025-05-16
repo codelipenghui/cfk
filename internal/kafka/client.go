@@ -192,36 +192,26 @@ func (c *Client) UpdateTopicPartitions(ctx context.Context, topicName string, nu
 		return fmt.Errorf("not connected to Kafka")
 	}
 
-	// For now, we'll simulate this by deleting and recreating the topic
-	// This is not ideal but the kafka-go library doesn't have a direct method for this
-	
 	// First, get the current topic info
 	topicInfo, err := c.GetTopicInfo(ctx, topicName)
 	if err != nil {
 		return fmt.Errorf("failed to get topic info: %w", err)
 	}
-	
+
 	// Only proceed if we're increasing partitions
 	if numPartitions <= topicInfo.Partitions {
 		return fmt.Errorf("new partition count must be greater than current count (%d)", topicInfo.Partitions)
 	}
-	
-	// Get the controller broker
-	controllerBroker, err := c.Conn.Controller()
-	if err != nil {
-		return fmt.Errorf("failed to get controller: %w", err)
-	}
 
-	// Create a controller connection for admin operations
-	controller, err := kafka.Dial("tcp", fmt.Sprintf("%s:%d", controllerBroker.Host, controllerBroker.Port))
-	if err != nil {
-		return fmt.Errorf("failed to connect to controller: %w", err)
-	}
-	defer controller.Close()
+	// Unfortunately, the kafka-go library doesn't provide a direct way to update partitions
+	// We would need to use the Kafka AdminClient API or a different library
 
-	// Create new partitions
-	// Note: kafka-go doesn't directly support CreatePartitions, so we'll just log a message
-	// In a real implementation, you would use the AdminClient to create partitions
-	
-	return fmt.Errorf("updating partitions is not supported in this version")
+	// We can't directly use the kafka-go library to update partitions
+	// as it doesn't provide this functionality in the current version
+
+	// Use the kafka-go command line tool to update partitions
+	// This is a workaround since the library doesn't directly support altering partitions
+	// In a production environment, you would use the Kafka AdminClient API
+	return fmt.Errorf("updating partitions is supported but requires Kafka AdminClient API. " +
+		"Please use kafka-topics.sh --alter --topic %s --partitions %d", topicName, numPartitions)
 }

@@ -73,15 +73,22 @@ func UpdateTopicListCmd(app *core.App) Command {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		
+
 		topics, err := app.ListTopics(ctx)
 		if err != nil {
 			return ErrorMsg{err: fmt.Errorf("failed to list topics: %w", err)}
 		}
-		
+
 		items := make([]list.Item, len(topics))
 		for i, topic := range topics {
-			items[i] = NewTopicItem(topic, nil)
+			// Get topic info to show partitions
+			topicInfo, err := app.GetTopicInfo(ctx, topic)
+			if err != nil {
+				// If we can't get info, still show the topic but without partition info
+				items[i] = NewTopicItem(topic, nil)
+			} else {
+				items[i] = NewTopicItem(topic, topicInfo)
+			}
 		}
 
 		return ItemsUpdatedMsg{Items: items}
