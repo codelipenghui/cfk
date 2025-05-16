@@ -398,10 +398,30 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 	// Debug log the current state
 	fmt.Fprintf(file, "TopicForm.Update: topicName='%s', partitions=%d, isEdit=%v\n", f.topicName, f.partitions, f.isEdit)
 
-	// Always ensure the topic name is set in the input field if we're editing
-	if f.topicName != "" && f.inputs[0].Value() != f.topicName {
-		fmt.Fprintf(file, "Resetting topic name input to '%s'\n", f.topicName)
-		f.inputs[0].SetValue(f.topicName)
+	// Always ensure the form is properly set up if we're editing
+	if f.topicName != "" {
+		// Ensure topic name is set correctly
+		if f.inputs[0].Value() != f.topicName {
+			fmt.Fprintf(file, "Resetting topic name input to '%s'\n", f.topicName)
+			f.inputs[0].SetValue(f.topicName)
+		}
+
+		// Make sure the topic name field is read-only
+		f.inputs[0].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Dimmed color
+		f.inputs[0].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))   // Dimmed color
+		f.inputs[0].Placeholder = "[Read-only] Topic Name"
+
+		// Make sure the partitions field is editable
+		f.inputs[1].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")) // Bright color
+		f.inputs[1].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))   // Normal text color
+
+		// If we're on the topic name field, move to partitions
+		if f.focusIndex == 0 {
+			f.focusIndex = 1
+			f.inputs[0].Blur()
+			f.inputs[1].Focus()
+			fmt.Fprintf(file, "Moving focus from topic name to partitions field\n")
+		}
 	}
 
 	var cmds []tea.Cmd
@@ -556,10 +576,17 @@ func (f TopicForm) View() string {
 		fmt.Fprintf(file, "Setting topic name input value to '%s'\n", f.topicName)
 		f.inputs[0].SetValue(f.topicName)
 
-		// Ensure the partitions field has a value
+		// Ensure the partitions field has a value and is editable
 		if f.inputs[1].Value() == "" {
 			f.inputs[1].SetValue(fmt.Sprintf("%d", f.partitions))
 		}
+
+		// Make sure the partitions field is focused and editable
+		f.inputs[1].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")) // Bright color
+		f.inputs[1].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))   // Normal text color
+		f.focusIndex = 1 // Set focus to partitions field
+		f.inputs[1].Focus()
+		fmt.Fprintf(file, "Making partitions field editable and focused\n")
 
 		// Set the submit button text
 		f.submitButton = "Update"
