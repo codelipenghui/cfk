@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/cfk-dev/cfk/internal/config"
@@ -26,7 +27,7 @@ type ClusterForm struct {
 // NewClusterForm creates a new cluster form
 func NewClusterForm(width, height int, cluster *config.KafkaClusterConfig) ClusterForm {
 	isEdit := cluster != nil
-	
+
 	// Initialize with default values if not editing
 	if !isEdit {
 		cluster = &config.KafkaClusterConfig{
@@ -36,10 +37,10 @@ func NewClusterForm(width, height int, cluster *config.KafkaClusterConfig) Clust
 			SASL:      false,
 		}
 	}
-	
+
 	// Create form inputs
 	inputs := make([]textinput.Model, 4)
-	
+
 	// Name input
 	inputs[0] = textinput.New()
 	inputs[0].Placeholder = "Cluster Name"
@@ -49,7 +50,7 @@ func NewClusterForm(width, height int, cluster *config.KafkaClusterConfig) Clust
 	inputs[0].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	inputs[0].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	inputs[0].SetValue(cluster.Name)
-	
+
 	// Bootstrap servers input
 	inputs[1] = textinput.New()
 	inputs[1].Placeholder = "Bootstrap Servers (comma-separated)"
@@ -58,7 +59,7 @@ func NewClusterForm(width, height int, cluster *config.KafkaClusterConfig) Clust
 	inputs[1].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	inputs[1].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	inputs[1].SetValue(strings.Join(cluster.Bootstrap, ","))
-	
+
 	// Username input
 	inputs[2] = textinput.New()
 	inputs[2].Placeholder = "Username (optional)"
@@ -67,7 +68,7 @@ func NewClusterForm(width, height int, cluster *config.KafkaClusterConfig) Clust
 	inputs[2].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	inputs[2].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	inputs[2].SetValue(cluster.Username)
-	
+
 	// Password input
 	inputs[3] = textinput.New()
 	inputs[3].Placeholder = "Password (optional)"
@@ -78,12 +79,12 @@ func NewClusterForm(width, height int, cluster *config.KafkaClusterConfig) Clust
 	inputs[3].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	inputs[3].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	inputs[3].SetValue(cluster.Password)
-	
+
 	submitText := "Add"
 	if isEdit {
 		submitText = "Update"
 	}
-	
+
 	return ClusterForm{
 		inputs:       inputs,
 		focusIndex:   0,
@@ -104,7 +105,7 @@ func (f ClusterForm) Init() tea.Cmd {
 // Update handles form events
 func (f ClusterForm) Update(msg tea.Msg) (ClusterForm, tea.Cmd) {
 	var cmds []tea.Cmd
-	
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -144,7 +145,7 @@ func (f ClusterForm) Update(msg tea.Msg) (ClusterForm, tea.Cmd) {
 					f.buttonFocus = 0
 				}
 			}
-			
+
 			// Update focus states
 			for i := 0; i < len(f.inputs); i++ {
 				if i == f.focusIndex {
@@ -153,9 +154,9 @@ func (f ClusterForm) Update(msg tea.Msg) (ClusterForm, tea.Cmd) {
 					f.inputs[i].Blur()
 				}
 			}
-			
+
 			return f, tea.Batch(cmds...)
-			
+
 		case "enter":
 			if f.focusIndex == -1 {
 				// Button is focused
@@ -167,7 +168,7 @@ func (f ClusterForm) Update(msg tea.Msg) (ClusterForm, tea.Cmd) {
 						for i, server := range bootstrapServers {
 							bootstrapServers[i] = strings.TrimSpace(server)
 						}
-						
+
 						cluster := config.KafkaClusterConfig{
 							Name:      f.inputs[0].Value(),
 							Bootstrap: bootstrapServers,
@@ -177,7 +178,7 @@ func (f ClusterForm) Update(msg tea.Msg) (ClusterForm, tea.Cmd) {
 							SASL:      f.cluster.SASL,
 							SASLType:  f.cluster.SASLType,
 						}
-						
+
 						if f.isEdit {
 							return ClusterUpdatedMsg{Cluster: cluster}
 						}
@@ -192,14 +193,14 @@ func (f ClusterForm) Update(msg tea.Msg) (ClusterForm, tea.Cmd) {
 			}
 		}
 	}
-	
+
 	// Handle character input for the focused input
 	if f.focusIndex >= 0 {
 		var cmd tea.Cmd
 		f.inputs[f.focusIndex], cmd = f.inputs[f.focusIndex].Update(msg)
 		return f, cmd
 	}
-	
+
 	return f, nil
 }
 
@@ -211,18 +212,18 @@ func (f ClusterForm) View() string {
 	} else {
 		formTitle = "Add New Kafka Cluster"
 	}
-	
+
 	formStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1, 2).
 		Width(f.width - 4)
-	
+
 	titleStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("205")).
 		Bold(true).
 		MarginBottom(1)
-	
+
 	inputsView := ""
 	for i, input := range f.inputs {
 		var label string
@@ -236,37 +237,37 @@ func (f ClusterForm) View() string {
 		case 3:
 			label = "Password (optional):"
 		}
-		
+
 		labelStyle := lipgloss.NewStyle().Width(20)
 		inputsView += labelStyle.Render(label) + " " + input.View() + "\n\n"
 	}
-	
+
 	// Render buttons
 	submitBgColor := "240"
 	if f.buttonFocus == 0 {
 		submitBgColor = "205"
 	}
-	
+
 	cancelBgColor := "240"
 	if f.buttonFocus == 1 {
 		cancelBgColor = "205"
 	}
-	
+
 	submitButtonStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("252")).
 		Background(lipgloss.Color(submitBgColor)).
 		Padding(0, 3).
 		MarginRight(1)
-	
+
 	cancelButtonStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("252")).
 		Background(lipgloss.Color(cancelBgColor)).
 		Padding(0, 3)
-	
+
 	buttonsView := submitButtonStyle.Render(f.submitButton) + " " + cancelButtonStyle.Render(f.cancelButton)
-	
+
 	helpText := "\nUse tab/shift+tab to navigate, enter to submit"
-	
+
 	return formStyle.Render(
 		titleStyle.Render(formTitle) + "\n" +
 			inputsView +
@@ -303,11 +304,16 @@ type TopicForm struct {
 
 // NewTopicForm creates a new topic form
 func NewTopicForm(width, height int, topicName string, partitions int) TopicForm {
+	// Debug log to file
+	file, _ := os.OpenFile("/tmp/cfk_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	defer file.Close()
+
 	isEdit := topicName != ""
-	
+	fmt.Fprintf(file, "Creating TopicForm with topicName='%s', partitions=%d, isEdit=%v\n", topicName, partitions, isEdit)
+
 	// Create form inputs
 	inputs := make([]textinput.Model, 2)
-	
+
 	// Topic name input
 	inputs[0] = textinput.New()
 	inputs[0].Placeholder = "Topic Name"
@@ -317,7 +323,21 @@ func NewTopicForm(width, height int, topicName string, partitions int) TopicForm
 	inputs[0].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	inputs[0].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	inputs[0].SetValue(topicName)
-	
+
+	// If editing an existing topic, make the name field read-only
+	if isEdit {
+		// Make the topic name field appear read-only
+		inputs[0].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Dimmed color
+		inputs[0].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))   // Dimmed color
+		inputs[0].Blur()                                                               // Remove focus indicator
+
+		// Add a note to the placeholder to indicate it's read-only
+		inputs[0].Placeholder = "[Read-only] Topic Name"
+
+		// Log that we're making the field read-only
+		fmt.Fprintf(file, "Setting topic name field to read-only for editing\n")
+	}
+
 	// Partitions input
 	inputs[1] = textinput.New()
 	inputs[1].Placeholder = "Number of Partitions"
@@ -325,21 +345,33 @@ func NewTopicForm(width, height int, topicName string, partitions int) TopicForm
 	inputs[1].Prompt = "› "
 	inputs[1].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	inputs[1].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	
+
 	if isEdit {
 		inputs[1].SetValue(fmt.Sprintf("%d", partitions))
 	} else {
 		inputs[1].SetValue("1") // Default to 1 partition
 	}
-	
+
 	submitText := "Add"
 	if isEdit {
 		submitText = "Update"
+		fmt.Fprintf(file, "Setting submit button text to 'Update' for edit mode\n")
+	} else {
+		fmt.Fprintf(file, "Setting submit button text to 'Add' for create mode\n")
 	}
-	
+
+	// Set initial focus index based on whether we're editing
+	initialFocusIndex := 0
+	if isEdit {
+		// When editing, focus on the partitions field
+		initialFocusIndex = 1
+		inputs[1].Focus()
+		inputs[0].Blur()
+	}
+
 	return TopicForm{
 		inputs:       inputs,
-		focusIndex:   0,
+		focusIndex:   initialFocusIndex,
 		submitButton: submitText,
 		cancelButton: "Cancel",
 		width:        width,
@@ -356,8 +388,17 @@ func (f TopicForm) Init() tea.Cmd {
 
 // Update handles form events
 func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
+	// Debug log to file
+	file, _ := os.OpenFile("/tmp/cfk_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	defer file.Close()
+	fmt.Fprintf(file, "TopicForm.Update called with message type: %T\n", msg)
+
+	// Force isEdit based on topicName
+	f.isEdit = f.topicName != ""
+	fmt.Fprintf(file, "TopicForm.Update: topicName='%s', isEdit=%v\n", f.topicName, f.isEdit)
+
 	var cmds []tea.Cmd
-	
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -384,9 +425,18 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 					if f.buttonFocus < 1 {
 						f.buttonFocus++
 					} else {
-						// Wrap to first input
+						// Wrap to first input (or second if editing)
 						f.buttonFocus = -1
-						f.focusIndex = 0
+						if f.isEdit {
+							// Skip the topic name field when editing
+							f.focusIndex = 1
+							// Debug log
+							file, _ := os.OpenFile("/tmp/cfk_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+							defer file.Close()
+							fmt.Fprintf(file, "Skipping topic name field in tab navigation (edit mode)\n")
+						} else {
+							f.focusIndex = 0
+						}
 					}
 				} else if f.focusIndex < len(f.inputs)-1 {
 					// Move to next input
@@ -397,7 +447,7 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 					f.buttonFocus = 0
 				}
 			}
-			
+
 			// Update focus states
 			for i := 0; i < len(f.inputs); i++ {
 				if i == f.focusIndex {
@@ -406,9 +456,9 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 					f.inputs[i].Blur()
 				}
 			}
-			
+
 			return f, tea.Batch(cmds...)
-			
+
 		case "enter":
 			if f.focusIndex == -1 {
 				// Button is focused
@@ -423,14 +473,21 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 								return ErrorMsg{err: fmt.Errorf("invalid number of partitions")}
 							}
 						}
-						
+
+						// Force isEdit check based on topicName
+						f.isEdit = f.topicName != ""
+						fmt.Fprintf(file, "Submit button pressed, isEdit=%v, topicName='%s'\n", f.isEdit, f.topicName)
+
 						if f.isEdit {
+							fmt.Fprintf(file, "Sending TopicUpdatedMsg for topic '%s' with partitions %d\n", f.topicName, partitions)
 							return TopicUpdatedMsg{
 								OldName:    f.topicName,
 								Name:       f.inputs[0].Value(),
 								Partitions: partitions,
 							}
 						}
+
+						fmt.Fprintf(file, "Sending TopicAddedMsg for topic '%s' with partitions %d\n", f.inputs[0].Value(), partitions)
 						return TopicAddedMsg{
 							Name:              f.inputs[0].Value(),
 							Partitions:        partitions,
@@ -446,37 +503,60 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 			}
 		}
 	}
-	
+
 	// Handle character input for the focused input
 	if f.focusIndex >= 0 {
-		var cmd tea.Cmd
-		f.inputs[f.focusIndex], cmd = f.inputs[f.focusIndex].Update(msg)
-		return f, cmd
+		// Skip updating the topic name field if we're editing
+		if f.isEdit && f.focusIndex == 0 {
+			// Do nothing - topic name is read-only when editing
+			file, _ := os.OpenFile("/tmp/cfk_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			defer file.Close()
+			fmt.Fprintf(file, "Ignoring input to read-only topic name field\n")
+			return f, nil
+		} else {
+			var cmd tea.Cmd
+			f.inputs[f.focusIndex], cmd = f.inputs[f.focusIndex].Update(msg)
+			return f, cmd
+		}
 	}
-	
+
 	return f, nil
 }
 
 // View renders the form
 func (f TopicForm) View() string {
+	// Debug log to file
+	file, _ := os.OpenFile("/tmp/cfk_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	defer file.Close()
+
+	// Force isEdit based on topicName
+	f.isEdit = f.topicName != ""
+
 	var formTitle string
 	if f.isEdit {
 		formTitle = "Edit Topic"
+		fmt.Fprintf(file, "TopicForm.View: Rendering edit form for topic '%s' with partitions '%s'\n", f.topicName, f.inputs[1].Value())
+
+		// Make sure the topic name field appears read-only
+		f.inputs[0].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Dimmed color
+		f.inputs[0].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))   // Dimmed color
+		f.inputs[0].Placeholder = "[Read-only] Topic Name"
 	} else {
 		formTitle = "Add New Topic"
+		fmt.Fprintf(file, "TopicForm.View: Rendering add form\n")
 	}
-	
+
 	formStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Padding(1, 2).
 		Width(f.width - 4)
-	
+
 	titleStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("205")).
 		Bold(true).
 		MarginBottom(1)
-	
+
 	inputsView := ""
 	for i, input := range f.inputs {
 		var label string
@@ -486,37 +566,37 @@ func (f TopicForm) View() string {
 		case 1:
 			label = "Partitions:"
 		}
-		
+
 		labelStyle := lipgloss.NewStyle().Width(20)
 		inputsView += labelStyle.Render(label) + " " + input.View() + "\n\n"
 	}
-	
+
 	// Render buttons
 	submitBgColor := "240"
 	if f.buttonFocus == 0 {
 		submitBgColor = "205"
 	}
-	
+
 	cancelBgColor := "240"
 	if f.buttonFocus == 1 {
 		cancelBgColor = "205"
 	}
-	
+
 	submitButtonStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("252")).
 		Background(lipgloss.Color(submitBgColor)).
 		Padding(0, 3).
 		MarginRight(1)
-	
+
 	cancelButtonStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("252")).
 		Background(lipgloss.Color(cancelBgColor)).
 		Padding(0, 3)
-	
+
 	buttonsView := submitButtonStyle.Render(f.submitButton) + " " + cancelButtonStyle.Render(f.cancelButton)
-	
+
 	helpText := "\nUse tab/shift+tab to navigate, enter to submit"
-	
+
 	return formStyle.Render(
 		titleStyle.Render(formTitle) + "\n" +
 			inputsView +
