@@ -532,6 +532,10 @@ func (f TopicForm) View() string {
 	// Force isEdit based on topicName
 	f.isEdit = f.topicName != ""
 
+	// Debug log the current values of the form inputs
+	fmt.Fprintf(file, "TopicForm.View: Current form values - topicName='%s', partitions='%s', isEdit=%v\n",
+		f.inputs[0].Value(), f.inputs[1].Value(), f.isEdit)
+
 	var formTitle string
 	if f.isEdit {
 		formTitle = "Edit Topic"
@@ -541,6 +545,12 @@ func (f TopicForm) View() string {
 		f.inputs[0].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Dimmed color
 		f.inputs[0].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))   // Dimmed color
 		f.inputs[0].Placeholder = "[Read-only] Topic Name"
+
+		// Ensure the topic name is displayed in the input field
+		if f.inputs[0].Value() == "" && f.topicName != "" {
+			fmt.Fprintf(file, "Setting topic name input value to '%s'\n", f.topicName)
+			f.inputs[0].SetValue(f.topicName)
+		}
 	} else {
 		formTitle = "Add New Topic"
 		fmt.Fprintf(file, "TopicForm.View: Rendering add form\n")
