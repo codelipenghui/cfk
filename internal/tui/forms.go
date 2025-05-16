@@ -300,6 +300,7 @@ type TopicForm struct {
 	height       int
 	topicName    string
 	isEdit       bool
+	partitions   int // Store the original partitions value
 }
 
 // NewTopicForm creates a new topic form
@@ -378,6 +379,7 @@ func NewTopicForm(width, height int, topicName string, partitions int) TopicForm
 		height:       height,
 		topicName:    topicName,
 		isEdit:       isEdit,
+		partitions:   partitions,
 	}
 }
 
@@ -393,9 +395,14 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 	defer file.Close()
 	fmt.Fprintf(file, "TopicForm.Update called with message type: %T\n", msg)
 
-	// Force isEdit based on topicName
-	f.isEdit = f.topicName != ""
-	fmt.Fprintf(file, "TopicForm.Update: topicName='%s', isEdit=%v\n", f.topicName, f.isEdit)
+	// Debug log the current state
+	fmt.Fprintf(file, "TopicForm.Update: topicName='%s', partitions=%d, isEdit=%v\n", f.topicName, f.partitions, f.isEdit)
+
+	// Always ensure the topic name is set in the input field if we're editing
+	if f.topicName != "" && f.inputs[0].Value() != f.topicName {
+		fmt.Fprintf(file, "Resetting topic name input to '%s'\n", f.topicName)
+		f.inputs[0].SetValue(f.topicName)
+	}
 
 	var cmds []tea.Cmd
 
@@ -427,13 +434,11 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 					} else {
 						// Wrap to first input (or second if editing)
 						f.buttonFocus = -1
-						if f.isEdit {
+						if f.topicName != "" {
 							// Skip the topic name field when editing
 							f.focusIndex = 1
 							// Debug log
-							file, _ := os.OpenFile("/tmp/cfk_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-							defer file.Close()
-							fmt.Fprintf(file, "Skipping topic name field in tab navigation (edit mode)\n")
+							fmt.Fprintf(file, "Skipping topic name field in tab navigation (edit mode for topic '%s')\n", f.topicName)
 						} else {
 							f.focusIndex = 0
 						}
@@ -474,24 +479,24 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 							}
 						}
 
-						// Force isEdit check based on topicName
-						f.isEdit = f.topicName != ""
-						fmt.Fprintf(file, "Submit button pressed, isEdit=%v, topicName='%s'\n", f.isEdit, f.topicName)
+						// Check if we're editing based on stored topicName
+						fmt.Fprintf(file, "Submit button pressed, stored topicName='%s'\n", f.topicName)
 
-						if f.isEdit {
+						if f.topicName != "" {
 							fmt.Fprintf(file, "Sending TopicUpdatedMsg for topic '%s' with partitions %d\n", f.topicName, partitions)
 							return TopicUpdatedMsg{
 								OldName:    f.topicName,
-								Name:       f.inputs[0].Value(),
+								Name:       f.topicName, // Always use the stored topic name
 								Partitions: partitions,
 							}
-						}
-
-						fmt.Fprintf(file, "Sending TopicAddedMsg for topic '%s' with partitions %d\n", f.inputs[0].Value(), partitions)
-						return TopicAddedMsg{
-							Name:              f.inputs[0].Value(),
-							Partitions:        partitions,
-							ReplicationFactor: 1, // Default to 1 replica
+						} else {
+							// This is a new topic
+							fmt.Fprintf(file, "Sending TopicAddedMsg for topic '%s' with partitions %d\n", f.inputs[0].Value(), partitions)
+							return TopicAddedMsg{
+								Name:              f.inputs[0].Value(),
+								Partitions:        partitions,
+								ReplicationFactor: 1, // Default to 1 replica
+							}
 						}
 					}
 				} else {
@@ -507,11 +512,14 @@ func (f TopicForm) Update(msg tea.Msg) (TopicForm, tea.Cmd) {
 	// Handle character input for the focused input
 	if f.focusIndex >= 0 {
 		// Skip updating the topic name field if we're editing
-		if f.isEdit && f.focusIndex == 0 {
+		if f.topicName != "" && f.focusIndex == 0 {
 			// Do nothing - topic name is read-only when editing
 			file, _ := os.OpenFile("/tmp/cfk_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			defer file.Close()
-			fmt.Fprintf(file, "Ignoring input to read-only topic name field\n")
+			fmt.Fprintf(file, "Ignoring input to read-only topic name field for topic '%s'\n", f.topicName)
+
+			// Reset the topic name to ensure it's always displayed correctly
+			f.inputs[0].SetValue(f.topicName)
 			return f, nil
 		} else {
 			var cmd tea.Cmd
@@ -529,31 +537,38 @@ func (f TopicForm) View() string {
 	file, _ := os.OpenFile("/tmp/cfk_debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer file.Close()
 
-	// Force isEdit based on topicName
-	f.isEdit = f.topicName != ""
-
 	// Debug log the current values of the form inputs
-	fmt.Fprintf(file, "TopicForm.View: Current form values - topicName='%s', partitions='%s', isEdit=%v\n",
-		f.inputs[0].Value(), f.inputs[1].Value(), f.isEdit)
+	fmt.Fprintf(file, "TopicForm.View: Current form values - topicName='%s', partitions='%s', stored topicName='%s', isEdit=%v\n",
+		f.inputs[0].Value(), f.inputs[1].Value(), f.topicName, f.isEdit)
 
+	// Always use the stored topicName to determine if we're editing
 	var formTitle string
-	if f.isEdit {
+	if f.topicName != "" {
 		formTitle = "Edit Topic"
-		fmt.Fprintf(file, "TopicForm.View: Rendering edit form for topic '%s' with partitions '%s'\n", f.topicName, f.inputs[1].Value())
+		fmt.Fprintf(file, "TopicForm.View: Rendering edit form for topic '%s' with partitions '%d'\n", f.topicName, f.partitions)
 
 		// Make sure the topic name field appears read-only
 		f.inputs[0].PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Dimmed color
 		f.inputs[0].TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))   // Dimmed color
 		f.inputs[0].Placeholder = "[Read-only] Topic Name"
 
-		// Ensure the topic name is displayed in the input field
-		if f.inputs[0].Value() == "" && f.topicName != "" {
-			fmt.Fprintf(file, "Setting topic name input value to '%s'\n", f.topicName)
-			f.inputs[0].SetValue(f.topicName)
+		// Always ensure the topic name is displayed in the input field
+		fmt.Fprintf(file, "Setting topic name input value to '%s'\n", f.topicName)
+		f.inputs[0].SetValue(f.topicName)
+
+		// Ensure the partitions field has a value
+		if f.inputs[1].Value() == "" {
+			f.inputs[1].SetValue(fmt.Sprintf("%d", f.partitions))
 		}
+
+		// Set the submit button text
+		f.submitButton = "Update"
 	} else {
 		formTitle = "Add New Topic"
 		fmt.Fprintf(file, "TopicForm.View: Rendering add form\n")
+
+		// Set the submit button text
+		f.submitButton = "Add"
 	}
 
 	formStyle := lipgloss.NewStyle().
